@@ -43,10 +43,7 @@ async fn start() {
 
 	let settings = match Settings::load().await {
 		Ok(settings) => {
-			println!(
-				"{}.",
-				"Settings successfully loaded.\nContinuing with spotify account:".green(),
-			);
+			println!("{}.", "Settings successfully loaded.\nContinuing".green());
 			settings
 		}
 		Err(e) => {
