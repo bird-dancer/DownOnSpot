@@ -46,7 +46,7 @@
    The `client_id` and `client_secret` can be obtained by creating an app at [spotify for developers](https://developer.spotify.com).
 
    You can obtain your `access_token` by following [this guide](https://developer.spotify.com/documentation/web-api/tutorials/getting-started#request-an-access-token).
-   Or on [the webplayer](https://open.spotify.com) also uses an access token (with a longer ttl), which you can view by inspecting the network traffic via your browser dev tools.
+   Or [the webplayer](https://open.spotify.com) also uses an access token (with a longer ttl), which you can view by inspecting the network traffic via your browser dev tools, when logged in.
 
 🎉 Now you can use DownOnSpot
 
