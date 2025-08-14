@@ -113,7 +113,7 @@ impl Downloader {
 
 			// Unsupported
 			SpotifyItem::Other(u) => {
-				error!("Unsupported URI: {}", u);
+				error!("Unsupported URI: {u}");
 				return Err(SpotifyError::Unavailable);
 			}
 		};
@@ -200,7 +200,6 @@ async fn communication_thread(
 }
 
 /// Spotify downloader
-
 pub struct DownloaderInternal {
 	spotify: Spotify,
 	pub tx: Sender<DownloaderMessage>,
@@ -386,7 +385,7 @@ impl DownloaderInternal {
 		if let Some(image) = track.album.images.first() {
 			match DownloaderInternal::download_cover(&image.url).await {
 				Ok(c) => cover = Some(c),
-				Err(e) => warn!("Failed downloading cover! {}", e),
+				Err(e) => warn!("Failed downloading cover! {e}"),
 			}
 		}
 

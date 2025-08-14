@@ -47,7 +47,7 @@ impl super::Tag for OggTag {
 
 		// MIME type
 		picture.extend(3u32.to_be_bytes().iter());
-		picture.extend((mime.as_bytes().len() as u32).to_be_bytes().iter());
+		picture.extend((mime.len() as u32).to_be_bytes().iter());
 		picture.extend(mime.as_bytes());
 
 		// Description
@@ -65,7 +65,7 @@ impl super::Tag for OggTag {
 
 		self.tag.add_tag_single(
 			"METADATA_BLOCK_PICTURE",
-			&general_purpose::STANDARD.encode(picture),
+			general_purpose::STANDARD.encode(picture),
 		);
 	}
 
@@ -88,7 +88,7 @@ impl super::Tag for OggTag {
 	fn set_release_date(&mut self, date: NaiveDate) {
 		self.tag.add_tag_single(
 			"DATE",
-			&format!("{}-{:02}-{:02}", date.year(), date.month(), date.day()),
+			format!("{}-{:02}-{:02}", date.year(), date.month(), date.day()),
 		)
 	}
 

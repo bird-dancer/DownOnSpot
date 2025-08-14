@@ -101,7 +101,7 @@ impl Read for AudioConverter {
 								Err(e) => {
 									return Err(Error::new(
 										ErrorKind::InvalidData,
-										format!("Lame error: {:?}", e),
+										format!("Lame error: {e:?}"),
 									));
 								}
 							};
@@ -120,7 +120,7 @@ impl Read for AudioConverter {
 						if !*lame_end {
 							*lame_end = true;
 						}
-						warn!("Lawton error: {}, calling EOF", e);
+						warn!("Lawton error: {e}, calling EOF");
 						Ok(0)
 					}
 				}

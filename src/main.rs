@@ -132,12 +132,9 @@ async fn start() {
 					.await
 				{
 					error!(
-						"{}",
-						format!(
-							"{}: {}",
-							"Track could not be added to download queue.".red(),
-							e
-						)
+						"{}: {}",
+						"Track could not be added to download queue.".red(),
+						e
 					);
 					return;
 				}
@@ -268,7 +265,7 @@ async fn start() {
 					"Event".underline()
 				);
 				for message in messages.iter().rev() {
-					println!("{}", message);
+					println!("{message}");
 				}
 
 				if !errors.is_empty() {
@@ -278,16 +275,15 @@ async fn start() {
 						"Error".underline()
 					);
 					for error in errors.iter().rev().take(5) {
-						println!("{}", error);
+						println!("{error}");
 					}
 				}
 
 				println!("\n\n {}", "Current downloads:".underline().bold());
-				println!("{}", current_download_view);
+				println!("{current_download_view}");
 
 				println!(
-					"\n{bold}{}|{}|{}|{}| Total{bold_off}",
-					" Waiting ",
+					"\n{bold} Waiting |{}|{}|{}| Total{bold_off}",
 					" Failed  ".red(),
 					" Skipped ".yellow(),
 					" Done    ".green()
@@ -317,7 +313,7 @@ async fn start() {
 			if !errors.is_empty() {
 				println!("\n\n All Errors:");
 				for error in errors {
-					println!("{}", error);
+					println!("{error}");
 				}
 			}
 		}
