@@ -7,8 +7,8 @@ use librespot::audio::{AudioDecrypt, AudioFile};
 use librespot::core::audio_key::AudioKey;
 use librespot::core::session::Session;
 use librespot::core::spotify_id::SpotifyId;
+use librespot::metadata::audio::AudioFileFormat;
 use librespot::metadata::{Metadata, Track};
-use librespot::protocol::metadata::audio_file::Format as FileFormat;
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -694,9 +694,10 @@ pub enum AudioFormat {
 	Ogg,
 	Aac,
 	Mp3,
-	Mp4,
 	Flac,
-	Unknown,
+	Xhe,
+	Mp4,
+	Other,
 }
 
 impl AudioFormat {
@@ -706,53 +707,58 @@ impl AudioFormat {
 			AudioFormat::Ogg => "ogg",
 			AudioFormat::Aac => "m4a",
 			AudioFormat::Mp3 => "mp3",
-			AudioFormat::Mp4 => "mp4",
 			AudioFormat::Flac => "flac",
-			AudioFormat::Unknown => "",
+			AudioFormat::Xhe => "xhe",
+			AudioFormat::Mp4 => "mp4",
+			AudioFormat::Other => "",
 		}
 		.to_string()
 	}
 }
 
-impl From<FileFormat> for AudioFormat {
-	fn from(f: FileFormat) -> Self {
+impl From<AudioFileFormat> for AudioFormat {
+	fn from(f: AudioFileFormat) -> Self {
 		match f {
-			FileFormat::OGG_VORBIS_96 => Self::Ogg,
-			FileFormat::OGG_VORBIS_160 => Self::Ogg,
-			FileFormat::OGG_VORBIS_320 => Self::Ogg,
-			FileFormat::MP3_256 => Self::Mp3,
-			FileFormat::MP3_320 => Self::Mp3,
-			FileFormat::MP3_160 => Self::Mp3,
-			FileFormat::MP3_96 => Self::Mp3,
-			FileFormat::MP3_160_ENC => Self::Mp3,
-			FileFormat::AAC_24 => Self::Aac,
-			FileFormat::AAC_48 => Self::Aac,
-			FileFormat::AAC_160 => Self::Aac,
-			FileFormat::AAC_320 => Self::Aac,
-			FileFormat::FLAC_FLAC => Self::Flac,
-			FileFormat::MP4_128 => Self::Mp4,
-			FileFormat::OTHER5 => AudioFormat::Unknown,
-			FileFormat::UNKNOWN_FORMAT => AudioFormat::Unknown,
+			AudioFileFormat::OGG_VORBIS_96 => Self::Ogg,
+			AudioFileFormat::OGG_VORBIS_160 => Self::Ogg,
+			AudioFileFormat::OGG_VORBIS_320 => Self::Ogg,
+			AudioFileFormat::MP3_96 => Self::Mp3,
+			AudioFileFormat::MP3_160 => Self::Mp3,
+			AudioFileFormat::MP3_256 => Self::Mp3,
+			AudioFileFormat::MP3_320 => Self::Mp3,
+			AudioFileFormat::MP3_160_ENC => Self::Mp3,
+			AudioFileFormat::AAC_24 => Self::Aac,
+			AudioFileFormat::AAC_48 => Self::Aac,
+			AudioFileFormat::AAC_160 => Self::Aac,
+
+			AudioFileFormat::FLAC_FLAC => Self::Flac,
+			AudioFileFormat::FLAC_FLAC_24BIT => Self::Flac,
+			AudioFileFormat::XHE_AAC_12 => Self::Xhe,
+			AudioFileFormat::XHE_AAC_16 => Self::Xhe,
+			AudioFileFormat::XHE_AAC_24 => Self::Xhe,
+			AudioFileFormat::MP4_128 => Self::Mp4,
+			AudioFileFormat::AAC_320 => Self::Aac,
+			AudioFileFormat::OTHER5 => Self::Other,
 		}
 	}
 }
 
 impl Quality {
 	/// Get librespot AudioFileFormat
-	pub fn get_file_formats(&self) -> Vec<FileFormat> {
+	pub fn get_file_formats(&self) -> Vec<AudioFileFormat> {
 		match self {
 			Self::Q320 => vec![
-				FileFormat::OGG_VORBIS_320,
-				FileFormat::AAC_48, // TODO
-				FileFormat::MP3_320,
+				AudioFileFormat::OGG_VORBIS_320,
+				AudioFileFormat::AAC_48, // TODO
+				AudioFileFormat::MP3_320,
 			],
-			Self::Q256 => vec![FileFormat::MP3_256],
+			Self::Q256 => vec![AudioFileFormat::MP3_256],
 			Self::Q160 => vec![
-				FileFormat::OGG_VORBIS_160,
-				FileFormat::AAC_24, // TODO
-				FileFormat::MP3_160,
+				AudioFileFormat::OGG_VORBIS_160,
+				AudioFileFormat::AAC_24, // TODO
+				AudioFileFormat::MP3_160,
 			],
-			Self::Q96 => vec![FileFormat::OGG_VORBIS_96, FileFormat::MP3_96],
+			Self::Q96 => vec![AudioFileFormat::OGG_VORBIS_96, AudioFileFormat::MP3_96],
 		}
 	}
 
