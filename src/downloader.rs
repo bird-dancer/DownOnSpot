@@ -1,8 +1,8 @@
-use async_std::channel::{bounded, Receiver, Sender};
+use async_std::channel::{Receiver, Sender, bounded};
 use async_stream::try_stream;
 use chrono::NaiveDate;
 use futures::stream::FuturesUnordered;
-use futures::{pin_mut, select, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, pin_mut, select};
 use librespot::audio::{AudioDecrypt, AudioFile};
 use librespot::core::audio_key::AudioKey;
 use librespot::core::session::Session;
