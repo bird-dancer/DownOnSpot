@@ -100,8 +100,15 @@ impl Downloader {
 				let tracks = self.spotify.full_playlist(&p.id).await?;
 				let queue: Vec<Download> = tracks
 					.into_iter()
-					.filter(|t| !t.is_local)
-					.map(|t| t.into())
+					.enumerate()
+					.filter_map(|(idx, t)| {
+						if t.is_local {
+							return None;
+						}
+						let mut download: Download = t.into();
+						download.track_index = Some((idx + 1) as u32);
+						Some(download)
+					})
 					.collect();
 				self.add_to_queue_multiple(queue).await;
 			}
@@ -296,6 +303,7 @@ impl DownloaderInternal {
 			.await?
 			.data;
 
+		let track_index = job.track_index;
 		let tags: Vec<(&str, String)> = vec![
 			("%title%", sanitize(&track.name)),
 			(
@@ -323,6 +331,14 @@ impl DownloaderInternal {
 			),
 			("%track%", track.track_number.to_string()),
 			("%0track%", format!("{:02}", track.track_number)),
+			(
+				"%trackIndex%",
+				track_index.map(|i| i.to_string()).unwrap_or_default(),
+			),
+			(
+				"%0trackIndex%",
+				track_index.map(|i| format!("{:02}", i)).unwrap_or_default(),
+			),
 			("%disc%", track.disc_number.to_string()),
 			("%0disc%", format!("{:02}", track.disc_number)),
 			("%id%", job.track_id.to_string()),
@@ -776,6 +792,7 @@ impl Quality {
 pub struct DownloadJob {
 	pub id: i64,
 	pub track_id: String,
+	pub track_index: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -801,6 +818,7 @@ pub struct Download {
 	pub track_id: String,
 	pub title: String,
 	pub state: DownloadState,
+	pub track_index: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -827,6 +845,7 @@ impl From<aspotify::Track> for Download {
 			track_id: val.id.unwrap(),
 			title: val.name,
 			state: DownloadState::None,
+			track_index: None,
 		}
 	}
 }
@@ -838,6 +857,7 @@ impl From<aspotify::TrackSimplified> for Download {
 			track_id: val.id.unwrap(),
 			title: val.name,
 			state: DownloadState::None,
+			track_index: None,
 		}
 	}
 }
@@ -847,6 +867,7 @@ impl From<Download> for DownloadJob {
 		DownloadJob {
 			id: val.id,
 			track_id: val.track_id,
+			track_index: val.track_index,
 		}
 	}
 }

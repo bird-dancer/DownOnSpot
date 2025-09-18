@@ -62,6 +62,7 @@ You can use the following template variables for `path` and `filename_template` 
 
 - %0disc%
 - %0track%
+- %0trackIndex%
 - %album%
 - %albumArtist%
 - %albumArtists%
@@ -70,6 +71,7 @@ You can use the following template variables for `path` and `filename_template` 
 - %id%
 - %title%
 - %track%
+- %trackIndex%
 
 ## 🧭 Additional scripts
 
