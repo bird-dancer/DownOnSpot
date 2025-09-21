@@ -58,7 +58,7 @@
 
 ### ⚙️ Template variables
 
-You can use the following template variables for `path` and `filename_template` in the `settings.json` file:
+You can use the following template variables for `path`, `filename_template`, and `filename_template_playlist` in the `settings.json` file:
 
 - %0disc%
 - %0track%
@@ -72,6 +72,8 @@ You can use the following template variables for `path` and `filename_template` 
 - %title%
 - %track%
 - %trackIndex%
+
+Use `filename_template_playlist` to override the filename format applied when downloading items from playlists. Leave it empty to fall back to `filename_template`.
 
 ## 🧭 Additional scripts
 

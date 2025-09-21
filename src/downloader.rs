@@ -107,6 +107,7 @@ impl Downloader {
 						}
 						let mut download: Download = t.into();
 						download.track_index = Some((idx + 1) as u32);
+						download.is_from_playlist = true;
 						Some(download)
 					})
 					.collect();
@@ -304,6 +305,15 @@ impl DownloaderInternal {
 			.data;
 
 		let track_index = job.track_index;
+		let mut filename_template = if job.is_from_playlist {
+			if config.filename_template_playlist.is_empty() {
+				config.filename_template.clone()
+			} else {
+				config.filename_template_playlist.clone()
+			}
+		} else {
+			config.filename_template.clone()
+		};
 		let tags: Vec<(&str, String)> = vec![
 			("%title%", sanitize(&track.name)),
 			(
@@ -370,7 +380,6 @@ impl DownloaderInternal {
 			),
 		];
 
-		let mut filename_template = config.filename_template.clone();
 		let mut path_template = config.path.clone();
 		for (tag, value) in tags {
 			filename_template = filename_template.replace(tag, &value);
@@ -793,6 +802,7 @@ pub struct DownloadJob {
 	pub id: i64,
 	pub track_id: String,
 	pub track_index: Option<u32>,
+	pub is_from_playlist: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -819,6 +829,7 @@ pub struct Download {
 	pub title: String,
 	pub state: DownloadState,
 	pub track_index: Option<u32>,
+	pub is_from_playlist: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -846,6 +857,7 @@ impl From<aspotify::Track> for Download {
 			title: val.name,
 			state: DownloadState::None,
 			track_index: None,
+			is_from_playlist: false,
 		}
 	}
 }
@@ -858,6 +870,7 @@ impl From<aspotify::TrackSimplified> for Download {
 			title: val.name,
 			state: DownloadState::None,
 			track_index: None,
+			is_from_playlist: false,
 		}
 	}
 }
@@ -868,6 +881,7 @@ impl From<Download> for DownloadJob {
 			id: val.id,
 			track_id: val.track_id,
 			track_index: val.track_index,
+			is_from_playlist: val.is_from_playlist,
 		}
 	}
 }
@@ -912,6 +926,8 @@ pub struct DownloaderConfig {
 	pub quality: Quality,
 	pub path: String,
 	pub filename_template: String,
+	#[serde(default)]
+	pub filename_template_playlist: String,
 	pub id3v24: bool,
 	pub convert_to_mp3: bool,
 	pub separator: String,
@@ -926,6 +942,7 @@ impl DownloaderConfig {
 			quality: Quality::Q320,
 			path: "downloads".to_string(),
 			filename_template: "%artist% - %title%".to_string(),
+			filename_template_playlist: "%artist% - %title%".to_string(),
 			id3v24: true,
 			convert_to_mp3: false,
 			separator: ", ".to_string(),
