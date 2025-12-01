@@ -8,6 +8,7 @@ use chrono::NaiveDate;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, Stream, StreamExt, pin_mut, select};
 use librespot::audio::{AudioDecrypt, AudioFile};
+use librespot::core::SpotifyUri;
 use librespot::core::audio_key::AudioKey;
 use librespot::core::session::Session;
 use librespot::core::spotify_id::SpotifyId;
@@ -522,7 +523,7 @@ impl DownloaderInternal {
 		job_id: i64,
 	) -> Result<(PathBuf, AudioFormat), SpotifyError> {
 		let id = SpotifyId::from_base62(id)?;
-		let mut track = Track::get(session, &id).await?;
+		let mut track = Track::get(session, &SpotifyUri::Track { id }).await?;
 
 		// Fallback if unavailable
 		if Self::track_has_alternatives(&track) {
@@ -539,7 +540,7 @@ impl DownloaderInternal {
 		'outer: loop {
 			for format in quality.get_file_formats() {
 				if let Some(f) = track.files.get(&format) {
-					info!("{} Using {:?} format.", id.to_base62().unwrap(), format);
+					info!("{} Using {:?} format.", id, format);
 					file_id = Some(f);
 					file_format = Some(format);
 					break 'outer;
@@ -550,7 +551,7 @@ impl DownloaderInternal {
 				Some(q) => quality = q,
 				None => break,
 			}
-			warn!("{} Falling back to: {:?}", id.to_base62().unwrap(), quality);
+			warn!("{} Falling back to: {:?}", id, quality);
 		}
 
 		let file_id = file_id.ok_or(SpotifyError::Unavailable)?;
@@ -575,7 +576,10 @@ impl DownloaderInternal {
 
 		let path_clone = path.clone();
 
-		let key = session.audio_key().request(track.id, *file_id).await?;
+		let key = session
+			.audio_key()
+			.request(SpotifyId::try_from(&track.id)?, *file_id)
+			.await?;
 		let encrypted = AudioFile::open(session, *file_id, 1024 * 1024).await?;
 		let size = encrypted.get_stream_loader_controller()?.len();
 		// Download
@@ -615,7 +619,7 @@ impl DownloaderInternal {
 			}
 		}
 
-		info!("Done downloading: {}", track.id.to_base62().unwrap());
+		info!("Done downloading: {}", track.id);
 		Ok((path, audio_format))
 	}
 
