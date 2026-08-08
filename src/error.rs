@@ -1,56 +1,47 @@
-use std::fmt;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SpotifyError {
+	#[error("Error: {0}")]
 	Error(String),
+	#[error("IO: {0:?} {1}")]
 	IoError(std::io::ErrorKind, String),
+	#[error("Mercury Error")]
 	MercuryError,
+	#[error("Authentication Error")]
 	AuthenticationError,
+	#[error("Unavailable!")]
 	Unavailable,
+	#[error("Invalid Spotify ID")]
 	SpotifyIdError,
+	#[error("Channel Error")]
 	ChannelError,
+	#[error("Audio Key Error")]
 	AudioKeyError,
+	#[error("Lame error: {0}")]
 	LameConverterError(String),
+	#[error("Tokio Join Error")]
 	JoinError,
+	#[error("Spotify Error: {0}")]
 	ASpotify(String),
+	#[error("Serde Error @{1}:{2} {0}")]
 	Serde(String, usize, usize),
+	#[error("Invalid URI")]
 	InvalidUri,
+	#[error("Parse Error: {0}")]
 	ParseError(url::ParseError),
+	#[error("ID3 Error: {0} {1}")]
 	ID3Error(String, String),
+	#[error("Reqwest Error: {0}")]
 	Reqwest(String),
+	#[error("Invalid Format!")]
 	InvalidFormat,
+	#[error("Not Connected")]
 	NotConnected,
+	#[error("Unknown Packet: {0}")]
 	UnknownPacket(u8),
+	#[error("Already Downloaded")]
 	AlreadyDownloaded(String),
 }
 
-impl std::error::Error for SpotifyError {}
-impl fmt::Display for SpotifyError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			SpotifyError::Error(e) => write!(f, "Error: {e}"),
-			SpotifyError::MercuryError => write!(f, "Mercury Error"),
-			SpotifyError::IoError(kind, err) => write!(f, "IO: {kind:?} {err}"),
-			SpotifyError::AuthenticationError => write!(f, "Authentication Error"),
-			SpotifyError::Unavailable => write!(f, "Unavailable!"),
-			SpotifyError::SpotifyIdError => write!(f, "Invalid Spotify ID"),
-			SpotifyError::ChannelError => write!(f, "Channel Error"),
-			SpotifyError::AudioKeyError => write!(f, "Audio Key Error"),
-			SpotifyError::LameConverterError(e) => write!(f, "Lame error: {e}"),
-			SpotifyError::JoinError => write!(f, "Tokio Join Error"),
-			SpotifyError::ASpotify(e) => write!(f, "Spotify Error: {e}"),
-			SpotifyError::Serde(e, l, c) => write!(f, "Serde Error @{l}:{c} {e}"),
-			SpotifyError::InvalidUri => write!(f, "Invalid URI"),
-			SpotifyError::ParseError(e) => write!(f, "Parse Error: {e}"),
-			SpotifyError::ID3Error(k, e) => write!(f, "ID3 Error: {k} {e}"),
-			SpotifyError::Reqwest(e) => write!(f, "Reqwest Error: {e}"),
-			SpotifyError::InvalidFormat => write!(f, "Invalid Format!"),
-			SpotifyError::NotConnected => write!(f, "Not Connected"),
-			SpotifyError::UnknownPacket(e) => write!(f, "Unknown Packet: {e}"),
-			SpotifyError::AlreadyDownloaded(_) => write!(f, "Already Downloaded"),
-		}
-	}
-}
 impl From<std::io::Error> for SpotifyError {
 	fn from(e: std::io::Error) -> Self {
 		Self::IoError(e.kind(), e.to_string())

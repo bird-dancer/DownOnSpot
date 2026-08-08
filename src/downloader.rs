@@ -632,15 +632,11 @@ impl DownloaderInternal {
 
 		// Path with extension
 		let mut audio_format: AudioFormat = file_format.into();
-		let path = format!(
-			"{}.{}",
-			path.as_ref().to_str().unwrap(),
-			match config.convert_to_mp3 {
-				true => "mp3".to_string(),
-				false => audio_format.extension(),
-			}
-		);
-		let path = Path::new(&path).to_owned();
+		let extension = match config.convert_to_mp3 {
+			true => "mp3".to_string(),
+			false => audio_format.extension(),
+		};
+		let path = path.as_ref().with_extension(extension);
 
 		// Don't download if we are skipping and the path exists.
 		if config.skip_existing && path.is_file() {
