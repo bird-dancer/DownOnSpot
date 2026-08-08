@@ -11,6 +11,7 @@ mod tag;
 
 use arg::Args;
 use colored::Colorize;
+use crossterm::{cursor, execute, terminal};
 use downloader::{DownloadState, Downloader};
 use error::SpotifyError;
 use settings::Settings;
@@ -102,7 +103,7 @@ async fn start() {
 	match downloader.handle_input(&args.input).await {
 		Ok(search_results) => {
 			if let Some(search_results) = search_results {
-				print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
+				execute!(std::io::stdout(), terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0, 0)).unwrap();
 
 				for (i, track) in search_results.iter().enumerate() {
 					println!("{}: {} - {}", i + 1, track.author, track.title);
@@ -149,7 +150,7 @@ async fn start() {
 			let mut errors = vec![];
 
 			'outer: loop {
-				print!("\x1b[2J\x1b[1;1H");
+				execute!(std::io::stdout(), cursor::MoveTo(0, 0)).unwrap();
 				let mut exit_flag: i8 = 1;
 
 				let mut num_completed = 0;
@@ -178,22 +179,21 @@ async fn start() {
 								"Downloaded".green(),
 								download.title
 							)),
-							DownloadState::Error(e) => {
-								let msg = format!(
+							DownloadState::Error(e @ SpotifyError::AlreadyDownloaded(_)) => {
+								messages.push(format!(
 									" {} | {}: {}",
 									secs_to_hrs_min_sec(time_elapsed as i32),
-									if matches!(e, SpotifyError::AlreadyDownloaded(_)) {
-										e.to_string().yellow()
-									} else {
-										e.to_string().red()
-									},
+									e.to_string().yellow(),
 									download.title
-								);
-								if matches!(e, SpotifyError::AlreadyDownloaded(_)) {
-									messages.push(msg);
-								} else {
-									errors.push(msg);
-								}
+								));
+							}
+							DownloadState::Error(e) => {
+								errors.push(format!(
+									" {} | {}: {}",
+									secs_to_hrs_min_sec(time_elapsed as i32),
+									e.to_string().red(),
+									download.title
+								));
 							}
 						};
 					}
@@ -295,6 +295,8 @@ async fn start() {
 					num_completed,
 					download_states.len()
 				);
+
+				execute!(std::io::stdout(), terminal::Clear(terminal::ClearType::FromCursorDown)).unwrap();
 
 				time_elapsed = now.elapsed().as_secs();
 				if exit_flag == 1 {

@@ -40,6 +40,7 @@ tokio = { version = "1", features = ["fs"] }
 env_logger = "0"
 m3u8-rs = "6.0.1"
 thiserror = "2.0.20"
+crossterm = "0.28"
 
 [package.metadata.winres]
 OriginalFilename = "DownOnSpot.exe"
