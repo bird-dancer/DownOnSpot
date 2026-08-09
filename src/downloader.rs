@@ -184,14 +184,10 @@ async fn communication_thread(
 					.iter()
 					.filter(|d| d.playlist_name.as_ref() == Some(playlist_name));
 
-				if !playlist_tracks.clone().all(|d| {
-					matches!(
-						d.state,
-						DownloadState::Done(_)
-							| DownloadState::Error(SpotifyError::AlreadyDownloaded(_))
-							| DownloadState::Error(SpotifyError::Unavailable)
-					)
-				}) {
+				if !playlist_tracks
+					.clone()
+					.all(|d| matches!(d.state, DownloadState::Done(_) | DownloadState::Error(_)))
+				{
 					continue;
 				}
 
@@ -209,8 +205,11 @@ async fn communication_thread(
 					continue;
 				}
 
+				let playlist_dir = PathBuf::from(&config.playlist_path);
+
+				tokio::fs::create_dir_all(&playlist_dir).await.ok();
 				let safe_name = sanitize_filename::sanitize(playlist_name);
-				let m3u_path = Path::new(&config.path).join(format!("{}.m3u8", safe_name));
+				let m3u_path = playlist_dir.join(format!("{}.m3u8", safe_name));
 
 				let mut playlist = m3u8_rs::MediaPlaylist {
 					version: Some(3),
@@ -219,11 +218,26 @@ async fn communication_thread(
 				};
 
 				for (title, p) in paths {
-					let relative_path = p.strip_prefix(&config.path).unwrap_or(&p);
-					let p_str = relative_path
-						.to_str()
-						.unwrap_or_default()
-						.replace('\\', "/");
+					let mut it1 = p.components().peekable();
+					let mut it2 = playlist_dir.components().peekable();
+					loop {
+						match (it1.peek(), it2.peek()) {
+							(Some(x), Some(y)) if x == y => {
+								it1.next();
+								it2.next();
+							}
+							_ => break,
+						}
+					}
+					let mut rel = PathBuf::new();
+					for _ in it2 {
+						rel.push("..");
+					}
+					for c in it1 {
+						rel.push(c);
+					}
+
+					let p_str = rel.to_str().unwrap_or_default().replace('\\', "/");
 					playlist.segments.push(m3u8_rs::MediaSegment {
 						uri: p_str,
 						title: Some(title),
@@ -275,6 +289,7 @@ pub struct DownloaderInternal {
 	pub tx: Sender<DownloaderMessage>,
 	rx: Mutex<Receiver<DownloaderMessage>>,
 	event_tx: Sender<Message>,
+	key_mutex: Mutex<()>,
 }
 
 pub enum DownloaderMessage {
@@ -290,6 +305,7 @@ impl DownloaderInternal {
 			tx,
 			rx: Mutex::new(rx),
 			event_tx,
+			key_mutex: Mutex::new(()),
 		}
 	}
 
@@ -338,12 +354,9 @@ impl DownloaderInternal {
 		let id = job.id;
 		match self.download_job(job, config).await {
 			Ok(_) => tokio::time::sleep(Duration::from_secs(1)).await,
-			Err(SpotifyError::AlreadyDownloaded(path)) => {
+			Err(e @ SpotifyError::AlreadyDownloaded(_)) | Err(e @ SpotifyError::AudioKeyError) => {
 				self.event_tx
-					.send(Message::UpdateState(
-						id,
-						DownloadState::Error(SpotifyError::AlreadyDownloaded(path)),
-					))
+					.send(Message::UpdateState(id, DownloadState::Error(e)))
 					.await
 					.unwrap();
 			}
@@ -352,7 +365,6 @@ impl DownloaderInternal {
 					.send(Message::UpdateState(id, DownloadState::Error(e)))
 					.await
 					.unwrap();
-				// std::thread::sleep(Duration::new(5, 0));
 				tokio::time::sleep(Duration::from_secs(7)).await;
 			}
 		}
@@ -448,16 +460,16 @@ impl DownloaderInternal {
 
 		tokio::fs::create_dir_all(path.parent().unwrap()).await?;
 
-		// Download
-		let (path, format) = DownloaderInternal::download_track(
-			&self.spotify.session,
-			&job.track_id,
-			path,
-			config.clone(),
-			self.event_tx.clone(),
-			job.id,
-		)
-		.await?;
+		// Download track
+		let (path, format) = self
+			.download_track(
+				&job.track_id,
+				&path,
+				config.clone(),
+				self.event_tx.clone(),
+				job.id,
+			)
+			.await?;
 		// Post processing
 		self.event_tx
 			.send(Message::UpdateState(job.id, DownloadState::Post))
@@ -588,19 +600,30 @@ impl DownloaderInternal {
 
 	/// Download track by id
 	async fn download_track(
-		session: &Session,
+		&self,
 		id: &str,
 		path: impl AsRef<Path>,
 		config: DownloaderConfig,
 		tx: Sender<Message>,
 		job_id: i64,
 	) -> Result<(PathBuf, AudioFormat), SpotifyError> {
+		let session = &self.spotify.session;
 		let id = SpotifyId::from_base62(id)?;
-		let mut track = Track::get(session, &SpotifyUri::Track { id }).await?;
+		let mut track = tokio::time::timeout(
+			std::time::Duration::from_secs(15),
+			Track::get(session, &SpotifyUri::Track { id }),
+		)
+		.await
+		.map_err(|_| SpotifyError::Error("Track metadata timeout".into()))??;
 
 		// Fallback if unavailable
 		if Self::track_has_alternatives(&track) {
-			track = Self::find_alternative(session, track).await?;
+			track = tokio::time::timeout(
+				std::time::Duration::from_secs(15),
+				Self::find_alternative(session, track),
+			)
+			.await
+			.map_err(|_| SpotifyError::Error("Track alternatives timeout".into()))??;
 		}
 
 		// if !track.available {
@@ -647,11 +670,26 @@ impl DownloaderInternal {
 
 		let path_clone = path.clone();
 
-		let key = session
-			.audio_key()
-			.request(SpotifyId::try_from(&track.id)?, *file_id)
-			.await?;
-		let encrypted = AudioFile::open(session, *file_id, 1024 * 1024).await?;
+		let key = {
+			let _lock = self.key_mutex.lock().await;
+			// Add a small 500ms delay to prevent hitting Spotify's rate limit
+			tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+			tokio::time::timeout(
+				std::time::Duration::from_secs(15),
+				session
+					.audio_key()
+					.request(SpotifyId::try_from(&track.id)?, *file_id),
+			)
+			.await
+			.map_err(|_| SpotifyError::AudioKeyError)
+			.and_then(|r| r.map_err(|e| e.into()))?
+		};
+		let encrypted = tokio::time::timeout(
+			std::time::Duration::from_secs(15),
+			AudioFile::open(session, *file_id, 1024 * 1024),
+		)
+		.await
+		.map_err(|_| SpotifyError::Error("Audio file open timeout".into()))??;
 		let size = encrypted.get_stream_loader_controller()?.len();
 		// Download
 		let s = match config.convert_to_mp3 {
@@ -672,20 +710,27 @@ impl DownloaderInternal {
 		pin_mut!(s);
 		// Read progress
 		let mut read = 0;
-		while let Some(result) = s.next().await {
-			match result {
-				Ok(r) => {
-					read += r;
-					tx.send(Message::UpdateState(
-						job_id,
-						DownloadState::Downloading(read, size),
-					))
-					.await
-					.ok();
-				}
-				Err(e) => {
-					tokio::fs::remove_file(path).await.ok();
-					return Err(e);
+		loop {
+			match tokio::time::timeout(std::time::Duration::from_secs(30), s.next()).await {
+				Ok(Some(result)) => match result {
+					Ok(r) => {
+						read += r;
+						tx.send(Message::UpdateState(
+							job_id,
+							DownloadState::Downloading(read, size),
+						))
+						.await
+						.ok();
+					}
+					Err(e) => {
+						tokio::fs::remove_file(&path).await.ok();
+						return Err(e);
+					}
+				},
+				Ok(None) => break,
+				Err(_) => {
+					tokio::fs::remove_file(&path).await.ok();
+					return Err(SpotifyError::Error("Download chunk timed out".into()));
 				}
 			}
 		}
@@ -984,6 +1029,7 @@ pub struct DownloaderConfig {
 	pub convert_to_mp3: bool,
 	pub separator: String,
 	pub skip_existing: bool,
+	pub playlist_path: String,
 }
 
 impl DownloaderConfig {
@@ -998,6 +1044,7 @@ impl DownloaderConfig {
 			convert_to_mp3: false,
 			separator: ", ".to_string(),
 			skip_existing: true,
+			playlist_path: "downloads".to_string(),
 		}
 	}
 }

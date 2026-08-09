@@ -97,13 +97,15 @@ async fn start() {
 
 	let downloader = Downloader::new(settings.downloader, spotify);
 
-	let bold = "\x1b[1m";
-	let bold_off = "\x1b[0m";
-
 	match downloader.handle_input(&args.input).await {
 		Ok(search_results) => {
 			if let Some(search_results) = search_results {
-				execute!(std::io::stdout(), terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0, 0)).unwrap();
+				execute!(
+					std::io::stdout(),
+					terminal::Clear(terminal::ClearType::All),
+					cursor::MoveTo(0, 0)
+				)
+				.unwrap();
 
 				for (i, track) in search_results.iter().enumerate() {
 					println!("{}: {} - {}", i + 1, track.author, track.title);
@@ -150,7 +152,6 @@ async fn start() {
 			let mut errors = vec![];
 
 			'outer: loop {
-				execute!(std::io::stdout(), cursor::MoveTo(0, 0)).unwrap();
 				let mut exit_flag: i8 = 1;
 
 				let mut num_completed = 0;
@@ -179,7 +180,8 @@ async fn start() {
 								"Downloaded".green(),
 								download.title
 							)),
-							DownloadState::Error(e @ SpotifyError::AlreadyDownloaded(_)) => {
+							DownloadState::Error(e @ SpotifyError::AlreadyDownloaded(_))
+							| DownloadState::Error(e @ SpotifyError::AudioKeyError) => {
 								messages.push(format!(
 									" {} | {}: {}",
 									secs_to_hrs_min_sec(time_elapsed as i32),
@@ -220,7 +222,10 @@ async fn start() {
 							None
 						}
 						DownloadState::Error(e) => {
-							if matches!(e, SpotifyError::AlreadyDownloaded(_)) {
+							if matches!(
+								e,
+								SpotifyError::AlreadyDownloaded(_) | SpotifyError::AudioKeyError
+							) {
 								num_skipped += 1;
 							} else {
 								num_err += 1;
@@ -233,8 +238,10 @@ async fn start() {
 							None
 						}
 					} {
+						let clear_line =
+							format!("{}", terminal::Clear(terminal::ClearType::UntilNewLine));
 						current_download_view
-							.push_str(&format!("{: >4} | {}\n", msg, download.title));
+							.push_str(&format!("{: >4} | {}{clear_line}\n", msg, download.title));
 					}
 				}
 
@@ -242,61 +249,77 @@ async fn start() {
 					messages.remove(0);
 				}
 
-				println!(" {bold}\x1b[0;34m- DownOnSpot v{VERSION} -\x1b[0m{bold_off}\n");
+				let clear_line = format!("{}", terminal::Clear(terminal::ClearType::UntilNewLine));
+				let mut out = String::new();
+				out.push_str(&format!(
+					" {}{clear_line}\n{clear_line}\n",
+					format!("- DownOnSpot v{VERSION} -").blue().bold()
+				));
 
-				println!(
-					"Time elapsed:   {}",
+				out.push_str(&format!(
+					"Time elapsed:   {}{clear_line}\n",
 					secs_to_hrs_min_sec(time_elapsed as i32)
-				);
-				println!(
-					"Time remaining: {}\n",
+				));
+				out.push_str(&format!(
+					"Time remaining: {}{clear_line}\n{clear_line}\n",
 					secs_to_hrs_min_sec(
 						(time_elapsed as f32
 							/ (progress_sum + num_completed as f32 + num_err as f32)
 							* (num_waiting as f32 + num_downloading as f32 - progress_sum))
 							.round() as i32
 					)
-				);
+				));
 
-				println!(
-					" {bold}  {}      {}{bold_off}",
-					"Time".underline(),
-					"Event".underline()
-				);
+				out.push_str(&format!(
+					"   {}      {}{clear_line}\n",
+					"Time".bold().underline(),
+					"Event".bold().underline()
+				));
 				for message in messages.iter().rev() {
-					println!("{message}");
+					out.push_str(&format!("{message}{clear_line}\n"));
 				}
 
 				if !errors.is_empty() {
-					println!(
-						"\n {bold}  {}      {}{bold_off}",
-						"Time".underline(),
-						"Error".underline()
-					);
+					out.push_str(&format!(
+						"{clear_line}\n   {}      {}{clear_line}\n",
+						"Time".bold().underline(),
+						"Error".bold().underline()
+					));
 					for error in errors.iter().rev().take(5) {
-						println!("{error}");
+						out.push_str(&format!("{error}{clear_line}\n"));
 					}
 				}
 
-				println!("\n\n {}", "Current downloads:".underline().bold());
-				println!("{current_download_view}");
+				out.push_str(&format!(
+					"{clear_line}\n{clear_line}\n {}{clear_line}\n",
+					"Current downloads:".underline().bold()
+				));
+				out.push_str(&current_download_view);
 
-				println!(
-					"\n{bold} Waiting |{}|{}|{}| Total{bold_off}",
-					" Failed  ".red(),
-					" Skipped ".yellow(),
-					" Done    ".green()
-				);
-				println!(
-					" {: <8}| {: <8}| {: <8}| {: <8}| {}",
+				out.push_str(&format!(
+					"{clear_line}\n {} |{}|{}|{}| {}{clear_line}\n",
+					"Waiting".bold(),
+					" Failed  ".red().bold(),
+					" Skipped ".yellow().bold(),
+					" Done    ".green().bold(),
+					"Total".bold()
+				));
+				out.push_str(&format!(
+					" {: <8}| {: <8}| {: <8}| {: <8}| {}{clear_line}\n",
 					num_waiting,
 					num_err,
 					num_skipped,
 					num_completed,
 					download_states.len()
-				);
+				));
 
-				execute!(std::io::stdout(), terminal::Clear(terminal::ClearType::FromCursorDown)).unwrap();
+				execute!(
+					std::io::stdout(),
+					cursor::MoveTo(0, 0),
+					crossterm::style::Print(&out),
+					terminal::Clear(terminal::ClearType::FromCursorDown)
+				)
+				.unwrap();
 
 				time_elapsed = now.elapsed().as_secs();
 				if exit_flag == 1 {
